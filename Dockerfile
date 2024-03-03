@@ -29,7 +29,7 @@ LABEL description="Create backup K3s sqllite and push in S3"
 WORKDIR /app
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
-COPY --from=builder /app/rds /app/rds
+COPY --from=builder /app/vcluster-backup /app/vcluster-backup
 USER appuser
 CMD ["/app/vcluster-backup"]
 
