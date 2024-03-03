@@ -60,7 +60,7 @@ jobs:
             ${{ steps.meta.outputs.tags }}
       - name: Sign Push
         run: |
-          cosign sign --key env://$COSIGN_KEY --tlog-upload=false ghcr.io/eumel8/vcluster-backup/vcluster-backup:${{ steps.meta.outputs.tag }}
+          cosign sign --key env://COSIGN_KEY --tlog-upload=false ghcr.io/eumel8/vcluster-backup/vcluster-backup:${{ steps.meta.outputs.tags }}
           #cosign sign --key env://COSIGN_KEY --tlog-upload=false ghcr.io/eumel8/vcluster-backup/vcluster-backup@${{ steps.build-push.outputs.digest }}
           #          cosign sign --key env://COSIGN_KEY --tlog-upload=false mtr.devops.telekom.de/caas/vcluster-backup@${{ steps.build-push.outputs.digest }}
         env:
