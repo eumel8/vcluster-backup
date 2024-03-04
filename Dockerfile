@@ -21,7 +21,7 @@ RUN adduser \
     --uid 1000 \    
     appuser
 
-FROM scratch
+FROM alpine:latest
 LABEL org.opencontainers.image.authors="f.kloeker@telekom.de"
 LABEL version="1.0.0"
 LABEL description="Create backup K3s sqllite and push in S3"
