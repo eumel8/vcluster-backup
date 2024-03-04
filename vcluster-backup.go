@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -22,23 +23,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func encryptFile(filename string, data []byte, passphrase string) error {
-	block, err := aes.NewCipher([]byte(passphrase))
-	if err != nil {
-		return err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return err
-	}
-	ciphertext := gcm.Seal(nonce, nonce, data, nil)
-	return os.WriteFile(filename, ciphertext, 0777)
-}
-
+// Encrypts the given data using AES-256-GCM and writes it to the file
 func encryptFileAES256(filename string, data []byte, passphrase string) error {
 	// Generate a 32-byte key from the passphrase
 	hasher := sha256.New()
@@ -61,6 +46,7 @@ func encryptFileAES256(filename string, data []byte, passphrase string) error {
 	return os.WriteFile(filename, ciphertext, 0777)
 }
 
+// Decrypts the given file using AES-256-GCM and returns the decrypted data
 func decryptFileAES256(filename string, ciphertext []byte, passphrase string) ([]byte, error) {
 	// Generate a 32-byte key from the passphrase
 	hasher := sha256.New()
@@ -87,13 +73,44 @@ func decryptFileAES256(filename string, ciphertext []byte, passphrase string) ([
 	return plaintext, nil
 }
 
-func main() {
+func listS3Objects(ctx context.Context, s3Client *minio.Client, bucketName string) ([]minio.ObjectInfo, error) {
+	var objects []minio.ObjectInfo
+	doneCh := make(chan struct{})
+	defer close(doneCh)
 
+	for object := range s3Client.ListObjects(ctx, bucketName, minio.ListObjectsOptions{}) {
+		if object.Err != nil {
+			return nil, object.Err
+		}
+		objects = append(objects, object)
+	}
+	return objects, nil
+}
+
+func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*minio.Client, error) {
+	minioClient, err := minio.New(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Region: region,
+		Secure: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Enable tracing of S3 API calls
+	if trace {
+		minioClient.TraceOn(os.Stdout)
+	}
+
+	return minioClient, nil
+}
+
+func main() {
+	// Command-line flags for the backup file, interval, and S3 bucket name
 	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey string
 	var backupInterval int
-	var decrypt bool
+	var restore, list, trace bool
 
-	// Command-line flags for the backup file, interval, and S3 bucket name
 	// File to backup, e.g. sqlite database
 	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance.")
 	// Set the interval for backup in minutes
@@ -106,20 +123,80 @@ func main() {
 	flag.StringVar(&region, "region", "default", "S3 region.")
 	flag.StringVar(&encKey, "encKey", "", "S3 encryption key.")
 	/// Calling decrypt function
-	flag.BoolVar(&decrypt, "decrypt", false, "Decrypt the file")
+	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
+	// Calling S3object list function
+	flag.BoolVar(&list, "list", false, "List S3 objects")
+	// Trace S3 API calls
+	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls")
 	// Parse the command-line flags
 	flag.Parse()
 
-	if decrypt {
-		fmt.Println("Decrypting file ", backupFile)
+	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
+	if err != nil {
+		log.Println("Failed to create MinIO client:", err)
+		os.Exit(1)
+	}
 
-		ciphertext, err := os.ReadFile(backupFile)
+	if list {
+		fmt.Println("Listing S3 objects in bucket ", bucketName)
+
+		objects, err := listS3Objects(context.Background(), minioClient, bucketName)
+		if err != nil {
+			log.Println("Failed to list S3 objects:", err)
+			os.Exit(1)
+		}
+
+		for _, object := range objects {
+			fmt.Printf("Object: %s\n", object.Key)
+		}
+		os.Exit(0)
+	}
+
+	if restore {
+		fmt.Println("Fetch & Decrypting file ", backupFile)
+
+		// Fetch the object from S3
+		fetchedObject, err := minioClient.GetObject(context.Background(), bucketName, backupFile, minio.GetObjectOptions{})
+		if err != nil {
+			log.Println("Failed to fetch object from S3:", err)
+			os.Exit(1)
+		}
+
+		var ciphertext bytes.Buffer
+		_, err = io.Copy(&ciphertext, fetchedObject)
 		if err != nil {
 			log.Println("Failed to read file for decrypt:", err)
 			os.Exit(1)
 		}
 
-		plaintext, err := decryptFileAES256(backupFile, ciphertext, encKey)
+		plaintext, err := func() ([]byte, error) {
+			var (
+				_          string = backupFile
+				ciphertext []byte = ciphertext.Bytes()
+				passphrase string = encKey
+			)
+			hasher := sha256.New()
+			hasher.Write([]byte(passphrase))
+			key := hasher.Sum(nil)
+			block, err := aes.NewCipher(key)
+			if err != nil {
+				return nil, err
+			}
+			gcm, err := cipher.NewGCM(block)
+			if err != nil {
+				return nil, err
+			}
+			nonceSize := gcm.NonceSize()
+			if len(ciphertext) < nonceSize {
+				return nil, err
+			}
+			nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+			plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+			if err != nil {
+				return nil, err
+			}
+			return plaintext, nil
+		}()
 		if err != nil {
 			log.Println("Failed to decrypt file:", err)
 			os.Exit(1)
@@ -134,20 +211,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Create a new minio service client
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Region: region,
-		Secure: true,
-	})
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// Enable tracing.
-	minioClient.TraceOn(os.Stdout)
-
 	// Create a channel to receive termination signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt)
@@ -158,6 +221,7 @@ func main() {
 			select {
 			case <-time.After(time.Duration(backupInterval) * time.Minute):
 				// Open the file to be backed up
+				// TODO: Might be better use sqlite3, i.e sqlite3 state.db ".backup backup/state-$(date +%Y-%m-%d-%H-%M-%S).db"
 				file, err := os.Open(backupFile)
 				if err != nil {
 					log.Println("Failed to open file:", err)

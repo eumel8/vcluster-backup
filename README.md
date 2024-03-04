@@ -6,7 +6,7 @@ A tool to backup periodically your sqlite DB from K3S/vCluster to S3 storage.
 
 - [vCluster](https://www.vcluster.com/docs/getting-started/deployment) deployed in non-HA with K3S and embedded sqlite DB
 - S3 compatible storage, using [Minio with security fixes](https://github.com/eumel8/minio/tree/fix/securitycontext/helm/minio)
-- bring the tool into the K3S pod
+- bring the tool into the K3S pod # TODO: use a sidecar container to the vcluster-pod
 
 ```bash
 tar -cf - vcluster-backup | kubectl -n kunde2 exec --stdin kunde2-vcluster-0 -- sh -c "cat > /tmp/vcluster-backup.tar"
@@ -38,10 +38,15 @@ Usage of ./vcluster-backup:
     	S3 encryption key.
   -endpoint string
     	S3 endpoint.
+  -list
+    	List S3 objects
   -region string
     	S3 region. (default "default")
   -secretKey string
     	S3 secretkey.
+  -trace
+    	Trace S3 API calls
+
 ```
 
 start backup:
@@ -51,15 +56,28 @@ start backup:
 # TODO: we need the /data/server/token?
 ```
 
+list backups:
+
+```bash
+./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint vcluster-backup.minio.io -secretKey xxxxxx -list
+Listing S3 objects in bucket  vclusterbackup99
+Object: backup_20240304143145.db.enc
+Object: backup_20240304143245.db.enc
+Object: backup_20240304143345.db.enc
+Object: backup_20240304144757.db.enc
+Object: backup_20240304144858.db.enc
+Object: backup_20240304150748.db.enc
+Object: backup_20240304150848.db.enc
+```
+
 restore backup:
 
 ```bash
 # stop k3s server
-# TODO: fetch the file from S3
 rm -rf /data/server/*
 mkdir -p /data/server/db
-./vcluster-backup -backupFile backup_20240227162707.db.enc  -encKey 123455 -decrypt
-cp backup_20240227162707.db.enc /data/server/db/state.db
+./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint vcluster-backup.minio.io -secretKey xxxxxx -backupFile backup_20240304143345.db.enc -encKey 12345 -restore
+cp backup_20240304143345.db.enc-restore /data/server/db/state.db
 # start k3s server
 ```
 
@@ -67,5 +85,5 @@ cp backup_20240227162707.db.enc /data/server/db/state.db
 
 ```bash
 go mod tidy
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o vcluster-backup vcluster-backup.go
+CGO_ENABLED=0 go build -o vcluster-backup vcluster-backup.go
 ```
