@@ -216,6 +216,7 @@ func main() {
 	signal.Notify(signalCh, os.Interrupt)
 
 	// Start a goroutine to perform the backup
+	log.Println("Start vcluster-backup. Perform the first backup in ", backupInterval, " minute(s)")
 	go func() {
 		for {
 			select {
