@@ -1,28 +1,19 @@
-# vcluster backup
+# Vcluster backup
 
 A tool to backup periodically your sqlite DB from K3S/vCluster to S3 storage.
 
-## prerequisites
+## Prerequisites
 
 - [vCluster](https://www.vcluster.com/docs/getting-started/deployment) deployed in non-HA with K3S and embedded sqlite DB
 - S3 compatible storage, using [Minio with security fixes](https://github.com/eumel8/minio/tree/fix/securitycontext/helm/minio)
-- bring the tool into the K3S pod # TODO: use a sidecar container to the vcluster-pod
 
-```bash
-tar -cf - vcluster-backup | kubectl -n kunde2 exec --stdin kunde2-vcluster-0 -- sh -c "cat > /tmp/vcluster-backup.tar"
-kubectl -n kunde2 exec -it kunde2-vcluster-0 -- sh
-cd /tmp
-tar xf vcluster-backup.tar
-```
-
-
-## usage
+## Usage
 
 On a single Kubernetes cluster build with vCluster and K3S there is no mechanism included to backup your cluster or your backend database. Of course, there are hints to use RDS or etcd, in our use case we have the embedded sqlite, which is in fact one file what we want to backup securely and periodically. 
 
 
 ```bash
-./vcluster-backup -h
+$ ./vcluster-backup -h
 Usage of ./vcluster-backup:
   -accessKey string
     	S3 accesskey.
@@ -52,14 +43,14 @@ Usage of ./vcluster-backup:
 start backup:
 
 ```bash
-./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint vcluster-backup.minio.io -secretKey xxxxxx -encKey 12345 -backupInterval 1
+$ ./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint minio.example.com -secretKey xxxxxx -encKey 12345 -backupInterval 1
 # TODO: we need the /data/server/token?
 ```
 
 list backups:
 
 ```bash
-./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint vcluster-backup.minio.io -secretKey xxxxxx -list
+$ ./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint minio.example.com -secretKey xxxxxx -list
 Listing S3 objects in bucket  vclusterbackup99
 Object: backup_20240304143145.db.enc
 Object: backup_20240304143245.db.enc
@@ -76,14 +67,70 @@ restore backup:
 # stop k3s server
 rm -rf /data/server/*
 mkdir -p /data/server/db
-./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint vcluster-backup.minio.io -secretKey xxxxxx -backupFile backup_20240304143345.db.enc -encKey 12345 -restore
+./vcluster-backup -accessKey vclusterbackup99 -bucketName vclusterbackup99 -endpoint minio.example.com -secretKey xxxxxx -backupFile backup_20240304143345.db.enc -encKey 12345 -restore
 cp backup_20240304143345.db.enc-restore /data/server/db/state.db
 # start k3s server
+```
+
+
+## Integration in vcluster setup
+
+From the idea vcluster-backup is used as sidecar container to the vcluster statefulset. The [origin Helm chart](https://github.com/loft-sh/vcluster/blob/v0.19.3/charts/k3s/templates/syncer.yaml) doesn't support sidecar container. There is a special version with this feature which can be used with this sidecar-values.yaml:
+
+<details>
+
+```yaml
+sidecar:
+  - args:
+    - /app/vcluster-backup
+    - -endpoint=minio.example.com
+    - -accessKey=xxxxx
+    - -secretKey=xxxxx
+    - -bucketName=vclusterbackups
+    - -encKey=12345 
+    - -trace=true
+    image: mtr.devops.telekom.de/caas/vcluster-backup:latest
+    imagePullPolicy: Always
+    name: backup
+    resources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 20m
+        memory: 64Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - all
+      readOnlyRootFilesystem: true
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+    volumeMounts:
+    - mountPath: /tmp
+      name: tmp
+    - mountPath: /data
+      name: data
+```
+
+</details>
+
+```bash
+$ helm -n vc1 upgrade -i vc1 -f sidecar-value.yaml --version v0.19.3 oci://mtr.devops.telekom.de/caas/charts/vcluster
 ```
 
 ## build
 
 ```bash
-go mod tidy
-CGO_ENABLED=0 go build -o vcluster-backup vcluster-backup.go
+$ go mod tidy
+$ CGO_ENABLED=0 go build -o vcluster-backup vcluster-backup.go
 ```
+
+## Credits
+
+- Frank Kloeker <f.kloeker@telekom.de>
+
+Life is for sharing. If you have an issue with the code or want to improve it, feel free to open an issue or an pull
+request.
