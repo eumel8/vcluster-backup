@@ -3,7 +3,7 @@ name: Build Image
 on:
   push:
     branches:
-      - feat/container
+      - '*'
       - main
       - dev
     tags:        
