@@ -149,6 +149,18 @@ func main() {
 	// Parse the environment variables
 	endpoint, bucketName, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
 
+	log.Println("Welcome to vcluster-backup")
+	log.Println("S3 endpoint: ", endpoint)
+	log.Println("S3 bucketName: ", bucketName)
+	log.Println("S3 accessKey: ", accessKey)
+	log.Println("S3 accessKey: ", secretKey[0:2])
+	log.Println("S3 region: ", region)
+	log.Println("S3 encKey: ", encKey[0:2])
+	if trace {
+		log.Println("S3 trace: true")
+	}
+	log.Println("S3 backupInterval: ", backupFile)
+
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
 		log.Println("Failed to create MinIO client:", err)
@@ -294,7 +306,12 @@ func main() {
 
 				// Upload the backup file to S3
 				_, err = minioClient.FPutObject(context.Background(), bucketName, backupFileTimestampedEnc, backupFilePathEnc, minio.PutObjectOptions{})
-				log.Println("Backup successfully created and uploaded to S3")
+				if err != nil {
+					log.Println("Failed to upload file:", err)
+					continue
+				} else {
+					log.Println("Backup successfully created and uploaded to S3")
+				}
 
 				// Remove the temporary backup file
 				err = os.Remove(backupFilePath)
