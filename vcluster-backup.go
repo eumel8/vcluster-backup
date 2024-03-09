@@ -106,16 +106,18 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 }
 
 // parse env vars
-func parseEnv(endpoint string, bucketName string, accessKey string, secretKey string, region string, enyKey string, trace bool, backupInterval int) string, string, string, string, string, string,  {
-	endpoint = os.Getenv("ENDPOINT")
-	bucketName = os.Getenv("BUCKET_NAME")
-	accessKey = os.Getenv("ACCESS_KEY")
-	secretKey = os.Getenv("SECRET_KEY")
-	region = os.Getenv("REGION")
-	enyKey = os.Getenv("ENC_KEY")
-	trace = os.Getenv("TRACE") == "true"
-	backupInterval = 2
-	return endpoint, bucketName, accessKey, secretKey, region, enyKey, trace, backupInterval	
+// func parseEnv(endpoint string, bucketName string, accessKey string, secretKey string, region string, enyKey string, trace bool, backupInterval int) (string, string, string, string, string, string, bool, int) {
+
+func parseEnv() (string, string, string, string, string, string, bool, int) {
+	endpoint := os.Getenv("ENDPOINT")
+	bucketName := os.Getenv("BUCKET_NAME")
+	accessKey := os.Getenv("ACCESS_KEY")
+	secretKey := os.Getenv("SECRET_KEY")
+	region := os.Getenv("REGION")
+	enyKey := os.Getenv("ENC_KEY")
+	trace := os.Getenv("TRACE") == "false"
+	backupInterval := 2
+	return endpoint, bucketName, accessKey, secretKey, region, enyKey, trace, backupInterval
 }
 
 func main() {
@@ -145,7 +147,7 @@ func main() {
 	flag.Parse()
 
 	// Parse the environment variables
-	endpoint, accessKey, secretKey, region, trace = parseEnv()
+	endpoint, bucketName, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
 
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
