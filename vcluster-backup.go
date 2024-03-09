@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"crypto/aes"
 	"crypto/cipher"
@@ -116,7 +117,7 @@ func parseEnv() (string, string, string, string, string, string, bool, int) {
 	region := os.Getenv("REGION")
 	enyKey := os.Getenv("ENC_KEY")
 	trace := os.Getenv("TRACE") == "false"
-	backupInterval := 2
+	backupInterval, _ := strconv.Atoi(os.Getenv("BACKUP_INTERVAL"))
 	return endpoint, bucketName, accessKey, secretKey, region, enyKey, trace, backupInterval
 }
 
@@ -153,13 +154,13 @@ func main() {
 	log.Println("S3 endpoint: ", endpoint)
 	log.Println("S3 bucketName: ", bucketName)
 	log.Println("S3 accessKey: ", accessKey)
-	log.Println("S3 accessKey: ", secretKey[0:2])
+	log.Println("S3 secretKey: ", secretKey[0:2])
 	log.Println("S3 region: ", region)
 	log.Println("S3 encKey: ", encKey[0:2])
 	if trace {
 		log.Println("S3 trace: true")
 	}
-	log.Println("S3 backupInterval: ", backupFile)
+	log.Println("S3 backupInterval: ", backupInterval)
 
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
