@@ -105,6 +105,19 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 	return minioClient, nil
 }
 
+// parse env vars
+func parseEnv(endpoint string, bucketName string, accessKey string, secretKey string, region string, enyKey string, trace bool, backupInterval int) string, string, string, string, string, string,  {
+	endpoint = os.Getenv("ENDPOINT")
+	bucketName = os.Getenv("BUCKET_NAME")
+	accessKey = os.Getenv("ACCESS_KEY")
+	secretKey = os.Getenv("SECRET_KEY")
+	region = os.Getenv("REGION")
+	enyKey = os.Getenv("ENC_KEY")
+	trace = os.Getenv("TRACE") == "true"
+	backupInterval = 2
+	return endpoint, bucketName, accessKey, secretKey, region, enyKey, trace, backupInterval	
+}
+
 func main() {
 	// Command-line flags for the backup file, interval, and S3 bucket name
 	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey string
@@ -130,6 +143,9 @@ func main() {
 	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls")
 	// Parse the command-line flags
 	flag.Parse()
+
+	// Parse the environment variables
+	endpoint, accessKey, secretKey, region, trace = parseEnv()
 
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
