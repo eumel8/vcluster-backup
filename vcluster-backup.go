@@ -88,7 +88,7 @@ func listS3Objects(ctx context.Context, s3Client *minio.Client, bucketName strin
 	return objects, nil
 }
 
-func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*minio.Client, error) {
+func minioClient(endpoint, accessKey, secretKey, region string, trace string) (*minio.Client, error) {
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Region: region,
@@ -99,7 +99,7 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 	}
 
 	// Enable tracing of S3 API calls
-	if trace {
+	if trace != "" {
 		minioClient.TraceOn(os.Stdout)
 	}
 
@@ -124,32 +124,40 @@ func parseEnv() (string, string, string, string, string, string, string, bool, i
 
 func main() {
 	// Command-line flags for the backup file, interval, and S3 bucket name
-	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey string
-	var backupInterval int
-	var restore, list, trace bool
+	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey, backupInterval, trace string
+	var restore, list bool
 
 	// Parse the environment variables
-	endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
+	//endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
 
 	// File to backup, e.g. sqlite database
 	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
 	// Set the interval for backup in minutes
-	flag.IntVar(&backupInterval, "backupInterval", 2, "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
+	flag.StringVar(&backupInterval, "backupInterval", os.Getenv("BACKUP_INTERVAL"), "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
 	// Set the S3 bucket name and key for storing the backup
-	flag.StringVar(&bucketName, "bucketName", "k3s-backup", "S3 bucket name. (ENV BUCKET_NAME)")
-	flag.StringVar(&accessKey, "accessKey", "", "S3 accesskey. (ENV ACCESS_KE)")
-	flag.StringVar(&secretKey, "secretKey", "", "S3 secretkey. (ENV SECRET_KEY)")
-	flag.StringVar(&endpoint, "endpoint", "", "S3 endpoint. (ENV ENDPOINT)")
-	flag.StringVar(&region, "region", "default", "S3 region. (ENV REGION)")
-	flag.StringVar(&encKey, "encKey", "", "S3 encryption key. (ENV ENC_KEY)")
-	/// Calling decrypt function
+	flag.StringVar(&bucketName, "bucketName", os.Getenv("BUCKET_NAME"), "S3 bucket name. (ENV BUCKET_NAME)")
+	flag.StringVar(&accessKey, "accessKey", os.Getenv("ACCESS_KEY"), "S3 accesskey. (ENV ACCESS_KE)")
+	flag.StringVar(&secretKey, "secretKey", os.Getenv("SECRET_KEY"), "S3 secretkey. (ENV SECRET_KEY)")
+	flag.StringVar(&endpoint, "endpoint", os.Getenv("ENDPOINT"), "S3 endpoint. (ENV ENDPOINT)")
+	flag.StringVar(&region, "region", os.Getenv("REGION"), "S3 region. (ENV REGION)")
+	flag.StringVar(&encKey, "encKey", os.Getenv("ENC_KEY"), "S3 encryption key. (ENV ENC_KEY)")
+	// Trace S3 API calls
+	flag.StringVar(&trace, "trace", os.Getenv("TRACE"), "Trace S3 API calls (trace=1). (ENV TRACE)")
+	// Parse the command-line flags
+	/// Calling decrypt function for backup restore
 	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
 	// Calling S3object list function
 	flag.BoolVar(&list, "list", false, "List S3 objects")
-	// Trace S3 API calls
-	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls. (ENV TRACE)")
-	// Parse the command-line flags
+
 	flag.Parse()
+
+	if backupInterval == "" {
+		backupInterval = "60"
+	}
+
+	if backupFile == "" {
+		backupFile = "/data/server/db/state.db"
+	}
 
 	log.Println("Welcome to vcluster-backup")
 	log.Println("S3 endpoint:", endpoint)
@@ -158,10 +166,8 @@ func main() {
 	log.Println("S3 accessKey:", accessKey)
 	log.Println("S3 secretKey:", secretKey[0:2], "...")
 	log.Println("S3 region:", region)
-	log.Println("encKey: ", encKey[0:2], "...")
-	if trace {
-		log.Println("S3 trace: true")
-	}
+	log.Println("encKey:", encKey[0:2], "...")
+	log.Println("S3 trace: ", trace)
 	log.Println("backupInterval: ", backupInterval)
 
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
@@ -250,10 +256,12 @@ func main() {
 
 	// Start a goroutine to perform the backup
 	log.Println("Start vcluster-backup. Perform the first backup in ", backupInterval, " minute(s)")
+	backupTime, _ := strconv.Atoi(backupInterval)
 	go func() {
 		for {
 			select {
-			case <-time.After(time.Duration(backupInterval) * time.Minute):
+
+			case <-time.After(time.Duration(backupTime) * time.Minute):
 				// Open the file to be backed up
 				// TODO: Might be better use sqlite3, i.e sqlite3 state.db ".backup backup/state-$(date +%Y-%m-%d-%H-%M-%S).db"
 				file, err := os.Open(backupFile)
