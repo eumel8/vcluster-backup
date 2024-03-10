@@ -128,6 +128,9 @@ func main() {
 	var backupInterval int
 	var restore, list, trace bool
 
+	// Parse the environment variables
+	endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
+
 	// File to backup, e.g. sqlite database
 	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
 	// Set the interval for backup in minutes
@@ -147,9 +150,6 @@ func main() {
 	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls. (ENV TRACE)")
 	// Parse the command-line flags
 	flag.Parse()
-
-	// Parse the environment variables
-	endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
 
 	log.Println("Welcome to vcluster-backup")
 	log.Println("S3 endpoint:", endpoint)
