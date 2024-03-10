@@ -80,8 +80,8 @@ From the idea vcluster-backup is used as sidecar container to the vcluster state
 example with env vars and existing secret (prefered method)
 
 <details>
+  
 ```yaml
-
 sidecar:
 - env:
     - name: ENDPOINT
@@ -128,6 +128,7 @@ sidecar:
   - mountPath: /data
     name: data
 ```
+
 </details>
 
 example with program flags
