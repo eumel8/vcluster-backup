@@ -109,16 +109,17 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 // parse env vars
 // func parseEnv(endpoint string, bucketName string, accessKey string, secretKey string, region string, enyKey string, trace bool, backupInterval int) (string, string, string, string, string, string, bool, int) {
 
-func parseEnv() (string, string, string, string, string, string, bool, int) {
+func parseEnv() (string, string, string, string, string, string, string, bool, int) {
 	endpoint := os.Getenv("ENDPOINT")
 	bucketName := os.Getenv("BUCKET_NAME")
+	backupFile := os.Getenv("BACKUP_FILE")
 	accessKey := os.Getenv("ACCESS_KEY")
 	secretKey := os.Getenv("SECRET_KEY")
 	region := os.Getenv("REGION")
 	enyKey := os.Getenv("ENC_KEY")
-	trace := os.Getenv("TRACE") == "false"
+	trace := os.Getenv("TRACE") == "true"
 	backupInterval, _ := strconv.Atoi(os.Getenv("BACKUP_INTERVAL"))
-	return endpoint, bucketName, accessKey, secretKey, region, enyKey, trace, backupInterval
+	return endpoint, bucketName, backupFile, accessKey, secretKey, region, enyKey, trace, backupInterval
 }
 
 func main() {
@@ -128,39 +129,40 @@ func main() {
 	var restore, list, trace bool
 
 	// File to backup, e.g. sqlite database
-	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance.")
+	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
 	// Set the interval for backup in minutes
-	flag.IntVar(&backupInterval, "backupInterval", 2, "Interval in minutes for backup.")
+	flag.IntVar(&backupInterval, "backupInterval", 2, "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
 	// Set the S3 bucket name and key for storing the backup
-	flag.StringVar(&bucketName, "bucketName", "k3s-backup", "S3 bucket name.")
-	flag.StringVar(&accessKey, "accessKey", "", "S3 accesskey.")
-	flag.StringVar(&secretKey, "secretKey", "", "S3 secretkey.")
-	flag.StringVar(&endpoint, "endpoint", "", "S3 endpoint.")
-	flag.StringVar(&region, "region", "default", "S3 region.")
-	flag.StringVar(&encKey, "encKey", "", "S3 encryption key.")
+	flag.StringVar(&bucketName, "bucketName", "k3s-backup", "S3 bucket name. (ENV BUCKET_NAME)")
+	flag.StringVar(&accessKey, "accessKey", "", "S3 accesskey. (ENV ACCESS_KE)")
+	flag.StringVar(&secretKey, "secretKey", "", "S3 secretkey. (ENV SECRET_KEY)")
+	flag.StringVar(&endpoint, "endpoint", "", "S3 endpoint. (ENV ENDPOINT)")
+	flag.StringVar(&region, "region", "default", "S3 region. (ENV REGION)")
+	flag.StringVar(&encKey, "encKey", "", "S3 encryption key. (ENV ENC_KEY)")
 	/// Calling decrypt function
 	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
 	// Calling S3object list function
 	flag.BoolVar(&list, "list", false, "List S3 objects")
 	// Trace S3 API calls
-	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls")
+	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls. (ENV TRACE)")
 	// Parse the command-line flags
 	flag.Parse()
 
 	// Parse the environment variables
-	endpoint, bucketName, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
+	endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
 
 	log.Println("Welcome to vcluster-backup")
-	log.Println("S3 endpoint: ", endpoint)
-	log.Println("S3 bucketName: ", bucketName)
-	log.Println("S3 accessKey: ", accessKey)
-	log.Println("S3 secretKey: ", secretKey[0:2])
-	log.Println("S3 region: ", region)
-	log.Println("S3 encKey: ", encKey[0:2])
+	log.Println("S3 endpoint:", endpoint)
+	log.Println("S3 bucketName:", bucketName)
+	log.Println("BackupFile:", backupFile)
+	log.Println("S3 accessKey:", accessKey)
+	log.Println("S3 secretKey:", secretKey[0:2], "...")
+	log.Println("S3 region:", region)
+	log.Println("encKey: ", encKey[0:2], "...")
 	if trace {
 		log.Println("S3 trace: true")
 	}
-	log.Println("S3 backupInterval: ", backupInterval)
+	log.Println("backupInterval: ", backupInterval)
 
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
