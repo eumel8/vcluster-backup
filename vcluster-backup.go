@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"crypto/aes"
 	"crypto/cipher"
@@ -87,7 +88,7 @@ func listS3Objects(ctx context.Context, s3Client *minio.Client, bucketName strin
 	return objects, nil
 }
 
-func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*minio.Client, error) {
+func minioClient(endpoint, accessKey, secretKey, region string, trace string) (*minio.Client, error) {
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Region: region,
@@ -98,7 +99,7 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 	}
 
 	// Enable tracing of S3 API calls
-	if trace {
+	if trace != "" {
 		minioClient.TraceOn(os.Stdout)
 	}
 
@@ -107,39 +108,57 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace bool) (*mi
 
 func main() {
 	// Command-line flags for the backup file, interval, and S3 bucket name
-	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey string
-	var backupInterval int
-	var restore, list, trace bool
+	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey, backupInterval, trace string
+	var restore, list bool
 
-	// File to backup, e.g. sqlite database
-	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance.")
-	// Set the interval for backup in minutes
-	flag.IntVar(&backupInterval, "backupInterval", 2, "Interval in minutes for backup.")
-	// Set the S3 bucket name and key for storing the backup
-	flag.StringVar(&bucketName, "bucketName", "k3s-backup", "S3 bucket name.")
-	flag.StringVar(&accessKey, "accessKey", "", "S3 accesskey.")
-	flag.StringVar(&secretKey, "secretKey", "", "S3 secretkey.")
-	flag.StringVar(&endpoint, "endpoint", "", "S3 endpoint.")
-	flag.StringVar(&region, "region", "default", "S3 region.")
-	flag.StringVar(&encKey, "encKey", "", "S3 encryption key.")
-	/// Calling decrypt function
+	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
+	flag.StringVar(&backupInterval, "backupInterval", os.Getenv("BACKUP_INTERVAL"), "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
+	flag.StringVar(&bucketName, "bucketName", os.Getenv("BUCKET_NAME"), "S3 bucket name. (ENV BUCKET_NAME)")
+	flag.StringVar(&accessKey, "accessKey", os.Getenv("ACCESS_KEY"), "S3 accesskey. (ENV ACCESS_KE)")
+	flag.StringVar(&secretKey, "secretKey", os.Getenv("SECRET_KEY"), "S3 secretkey. (ENV SECRET_KEY)")
+	flag.StringVar(&endpoint, "endpoint", os.Getenv("ENDPOINT"), "S3 endpoint. (ENV ENDPOINT)")
+	flag.StringVar(&region, "region", os.Getenv("REGION"), "S3 region. (ENV REGION)")
+	flag.StringVar(&encKey, "encKey", os.Getenv("ENC_KEY"), "S3 encryption key. (ENV ENC_KEY)")
+	// Trace S3 API calls
+	flag.StringVar(&trace, "trace", os.Getenv("TRACE"), "Trace S3 API calls (trace=1). (ENV TRACE)")
+	// Calling decrypt function for backup restore
 	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
 	// Calling S3object list function
 	flag.BoolVar(&list, "list", false, "List S3 objects")
-	// Trace S3 API calls
-	flag.BoolVar(&trace, "trace", false, "Trace S3 API calls")
-	// Parse the command-line flags
 	flag.Parse()
 
+	// set default backup interval if not set to 60 (min)
+	if backupInterval == "" {
+		backupInterval = "60"
+	}
+
+	// set default backup file if not set (K3S sqlite db)
+	if backupFile == "" {
+		backupFile = "/data/server/db/state.db"
+	}
+
+	// print program start information
+	log.Println("Welcome to vCluster backup")
+	log.Println("S3 endpoint:", endpoint)
+	log.Println("S3 bucketName:", bucketName)
+	log.Println("BackupFile:", backupFile)
+	log.Println("S3 accessKey:", accessKey)
+	log.Println("S3 secretKey:", secretKey[0:2], "...")
+	log.Println("S3 region:", region)
+	log.Println("encKey:", encKey[0:2], "...")
+	log.Println("S3 trace: ", trace)
+	log.Println("backupInterval: ", backupInterval)
+
+	// Init Minio client for S3 backend operations
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
 		log.Println("Failed to create MinIO client:", err)
 		os.Exit(1)
 	}
 
+	// list backups
 	if list {
 		fmt.Println("Listing S3 objects in bucket ", bucketName)
-
 		objects, err := listS3Objects(context.Background(), minioClient, bucketName)
 		if err != nil {
 			log.Println("Failed to list S3 objects:", err)
@@ -152,6 +171,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	// restore selected backup
 	if restore {
 		fmt.Println("Fetch & Decrypting file ", backupFile)
 
@@ -217,10 +237,12 @@ func main() {
 
 	// Start a goroutine to perform the backup
 	log.Println("Start vcluster-backup. Perform the first backup in ", backupInterval, " minute(s)")
+	backupTime, _ := strconv.Atoi(backupInterval)
 	go func() {
 		for {
 			select {
-			case <-time.After(time.Duration(backupInterval) * time.Minute):
+
+			case <-time.After(time.Duration(backupTime) * time.Minute):
 				// Open the file to be backed up
 				// TODO: Might be better use sqlite3, i.e sqlite3 state.db ".backup backup/state-$(date +%Y-%m-%d-%H-%M-%S).db"
 				file, err := os.Open(backupFile)
@@ -276,7 +298,12 @@ func main() {
 
 				// Upload the backup file to S3
 				_, err = minioClient.FPutObject(context.Background(), bucketName, backupFileTimestampedEnc, backupFilePathEnc, minio.PutObjectOptions{})
-				log.Println("Backup successfully created and uploaded to S3")
+				if err != nil {
+					log.Println("Failed to upload file:", err)
+					continue
+				} else {
+					log.Println("Backup successfully created and uploaded to S3")
+				}
 
 				// Remove the temporary backup file
 				err = os.Remove(backupFilePath)

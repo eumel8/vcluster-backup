@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '*'
+    tags:
+      - '*'
 
 jobs:
   build:
@@ -56,7 +58,7 @@ jobs:
             ${{ steps.meta.outputs.tags }}
       - name: Sign Push
         run: |
-          # doesn't work
+          # doesn't work, why not why
           #cosign sign --key env://COSIGN_KEY --tlog-upload=false ghcr.io/eumel8/vcluster-backup/vcluster-backup:dev
           #cosign sign --yes --key env://COSIGN_KEY --tlog-upload=false ghcr.io/eumel8/vcluster-backup/vcluster-backup@${{ steps.build-push.outputs.digest }}
           #cosign sign --yes --key env://COSIGN_KEY --tlog-upload=false mtr.devops.telekom.de/caas/vcluster-backup@${{ steps.build-push.outputs.digest }}
