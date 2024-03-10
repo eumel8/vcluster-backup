@@ -106,35 +106,13 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace string) (*
 	return minioClient, nil
 }
 
-// parse env vars
-// func parseEnv(endpoint string, bucketName string, accessKey string, secretKey string, region string, enyKey string, trace bool, backupInterval int) (string, string, string, string, string, string, bool, int) {
-
-func parseEnv() (string, string, string, string, string, string, string, bool, int) {
-	endpoint := os.Getenv("ENDPOINT")
-	bucketName := os.Getenv("BUCKET_NAME")
-	backupFile := os.Getenv("BACKUP_FILE")
-	accessKey := os.Getenv("ACCESS_KEY")
-	secretKey := os.Getenv("SECRET_KEY")
-	region := os.Getenv("REGION")
-	enyKey := os.Getenv("ENC_KEY")
-	trace := os.Getenv("TRACE") == "true"
-	backupInterval, _ := strconv.Atoi(os.Getenv("BACKUP_INTERVAL"))
-	return endpoint, bucketName, backupFile, accessKey, secretKey, region, enyKey, trace, backupInterval
-}
-
 func main() {
 	// Command-line flags for the backup file, interval, and S3 bucket name
 	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey, backupInterval, trace string
 	var restore, list bool
 
-	// Parse the environment variables
-	//endpoint, bucketName, backupFile, accessKey, secretKey, region, encKey, trace, backupInterval = parseEnv()
-
-	// File to backup, e.g. sqlite database
 	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
-	// Set the interval for backup in minutes
 	flag.StringVar(&backupInterval, "backupInterval", os.Getenv("BACKUP_INTERVAL"), "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
-	// Set the S3 bucket name and key for storing the backup
 	flag.StringVar(&bucketName, "bucketName", os.Getenv("BUCKET_NAME"), "S3 bucket name. (ENV BUCKET_NAME)")
 	flag.StringVar(&accessKey, "accessKey", os.Getenv("ACCESS_KEY"), "S3 accesskey. (ENV ACCESS_KE)")
 	flag.StringVar(&secretKey, "secretKey", os.Getenv("SECRET_KEY"), "S3 secretkey. (ENV SECRET_KEY)")
@@ -143,23 +121,24 @@ func main() {
 	flag.StringVar(&encKey, "encKey", os.Getenv("ENC_KEY"), "S3 encryption key. (ENV ENC_KEY)")
 	// Trace S3 API calls
 	flag.StringVar(&trace, "trace", os.Getenv("TRACE"), "Trace S3 API calls (trace=1). (ENV TRACE)")
-	// Parse the command-line flags
-	/// Calling decrypt function for backup restore
+	// Calling decrypt function for backup restore
 	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
 	// Calling S3object list function
 	flag.BoolVar(&list, "list", false, "List S3 objects")
-
 	flag.Parse()
 
+	// set default backup interval if not set to 60 (min)
 	if backupInterval == "" {
 		backupInterval = "60"
 	}
 
+	// set default backup file if not set (K3S sqlite db)
 	if backupFile == "" {
 		backupFile = "/data/server/db/state.db"
 	}
 
-	log.Println("Welcome to vcluster-backup")
+	// print program start information
+	log.Println("Welcome to vCluster backup")
 	log.Println("S3 endpoint:", endpoint)
 	log.Println("S3 bucketName:", bucketName)
 	log.Println("BackupFile:", backupFile)
@@ -170,15 +149,16 @@ func main() {
 	log.Println("S3 trace: ", trace)
 	log.Println("backupInterval: ", backupInterval)
 
+	// Init Minio client for S3 backend operations
 	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
 	if err != nil {
 		log.Println("Failed to create MinIO client:", err)
 		os.Exit(1)
 	}
 
+	// list backups
 	if list {
 		fmt.Println("Listing S3 objects in bucket ", bucketName)
-
 		objects, err := listS3Objects(context.Background(), minioClient, bucketName)
 		if err != nil {
 			log.Println("Failed to list S3 objects:", err)
@@ -191,6 +171,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	// restore selected backup
 	if restore {
 		fmt.Println("Fetch & Decrypting file ", backupFile)
 

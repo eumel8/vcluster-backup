@@ -77,6 +77,61 @@ cp backup_20240304143345.db.enc-restore /data/server/db/state.db
 
 From the idea vcluster-backup is used as sidecar container to the vcluster statefulset. The [origin Helm chart](https://github.com/loft-sh/vcluster/blob/v0.19.3/charts/k3s/templates/syncer.yaml) doesn't support sidecar container. There is a special version with this feature which can be used with this sidecar-values.yaml:
 
+example with env vars and existing secret (prefered method)
+
+<details>
+```yaml
+
+sidecar:
+- env:
+    - name: ENDPOINT
+      value: minio.example.com
+    - name: ACCESS_KEY
+      value: vc1
+    - name: BUCKET_NAME
+      value: vc1
+    - name: CLUSTERNAME
+      value: vc1
+    - name: ENC_KEY
+      value: "12345"
+    - name: TRACE
+      value: "1"
+    - name: BACKUP_INTERVAL
+      value: "1"
+    - name: SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: s3-register
+          key: s3secretkey
+  image: mtr.devops.telekom.de/caas/vcluster-backup:latest
+  imagePullPolicy: Always
+  name: backup
+  resources:
+    limits:
+      cpu: "1"
+      memory: 512Mi
+    requests:
+      cpu: 20m
+      memory: 64Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  volumeMounts:
+  - mountPath: /tmp
+    name: tmp
+  - mountPath: /data
+    name: data
+```
+</details>
+
+example with program flags
+
 <details>
 
 ```yaml
