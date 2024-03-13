@@ -2,6 +2,10 @@ name: Build Image
 
 on:
   push:
+    branches:
+      - '*'
+    tags:
+      - '*'
 
 jobs:
   build:
