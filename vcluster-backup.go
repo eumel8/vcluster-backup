@@ -88,11 +88,17 @@ func listS3Objects(ctx context.Context, s3Client *minio.Client, bucketName strin
 	return objects, nil
 }
 
-func minioClient(endpoint, accessKey, secretKey, region string, trace string) (*minio.Client, error) {
+func minioClient(endpoint, accessKey, secretKey, region string, trace string, insecure string) (*minio.Client, error) {
+
+	s := true
+	if insecure != "" {
+		s = false
+	}
+	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Region: region,
-		Secure: true,
+		Secure: s,
 	})
 	if err != nil {
 		return nil, err
@@ -108,9 +114,13 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace string) (*
 
 func main() {
 	// Command-line flags for the backup file, interval, and S3 bucket name
-	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey, backupInterval, trace string
+	var backupFile, bucketName, accessKey, secretKey, endpoint, region, encKey, backupInterval string
 	var restore, list bool
 
+	trace := ""
+	insecure := ""
+
+	// parse command-line flags
 	flag.StringVar(&backupFile, "backupFile", "/data/server/db/state.db", "Sqlite database of K3S instance. (ENV BACKUP_FILE)")
 	flag.StringVar(&backupInterval, "backupInterval", os.Getenv("BACKUP_INTERVAL"), "Interval in minutes for backup. (ENV BACKUP_INTERVAL)")
 	flag.StringVar(&bucketName, "bucketName", os.Getenv("BUCKET_NAME"), "S3 bucket name. (ENV BUCKET_NAME)")
@@ -121,6 +131,8 @@ func main() {
 	flag.StringVar(&encKey, "encKey", os.Getenv("ENC_KEY"), "S3 encryption key. (ENV ENC_KEY)")
 	// Trace S3 API calls
 	flag.StringVar(&trace, "trace", os.Getenv("TRACE"), "Trace S3 API calls (trace=1). (ENV TRACE)")
+	// insecure S3 connection
+	flag.StringVar(&insecure, "insecure", os.Getenv("INSECURE"), "Insecure S3 API calls (insecure=1). (ENV INSECURE)")
 	// Calling decrypt function for backup restore
 	flag.BoolVar(&restore, "restore", false, "Restore and decrypt S3 backup file")
 	// Calling S3object list function
@@ -147,10 +159,11 @@ func main() {
 	log.Println("S3 region:", region)
 	log.Println("encKey:", encKey[0:2], "...")
 	log.Println("S3 trace: ", trace)
+	log.Println("S3 insecure: ", insecure)
 	log.Println("backupInterval: ", backupInterval)
 
 	// Init Minio client for S3 backend operations
-	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace)
+	minioClient, err := minioClient(endpoint, accessKey, secretKey, region, trace, insecure)
 	if err != nil {
 		log.Println("Failed to create MinIO client:", err)
 		os.Exit(1)
