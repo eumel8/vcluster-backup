@@ -90,10 +90,15 @@ func listS3Objects(ctx context.Context, s3Client *minio.Client, bucketName strin
 
 func minioClient(endpoint, accessKey, secretKey, region string, trace string, insecure string) (*minio.Client, error) {
 
+	s := true
+	if insecure != "" {
+		s = false
+	}
+	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Region: region,
-		Secure: true,
+		Secure: s,
 	})
 	if err != nil {
 		return nil, err
@@ -102,10 +107,6 @@ func minioClient(endpoint, accessKey, secretKey, region string, trace string, in
 	// Enable tracing of S3 API calls
 	if trace != "" {
 		minioClient.TraceOn(os.Stdout)
-	}
-
-	if insecure != "" {
-		minioClient.EndpointURL().Scheme = "http"
 	}
 
 	return minioClient, nil
