@@ -35,8 +35,10 @@ Usage of ./vcluster-backup:
     	S3 region. (default "default")
   -secretKey string
     	S3 secretkey.
-  -trace
+  -trace string
     	Trace S3 API calls
+  -insecure string
+    	Insecure S3 backend
 
 ```
 
@@ -96,6 +98,8 @@ sidecar:
       value: "12345"
     - name: TRACE
       value: "1"
+    - name: INSECURE
+      value: "1"
     - name: BACKUP_INTERVAL
       value: "1"
     - name: SECRET_KEY
@@ -144,7 +148,8 @@ sidecar:
     - -secretKey=xxxxx
     - -bucketName=vclusterbackups
     - -encKey=12345 
-    - -trace=true
+    - -trace="1"
+    - -insecure="1"
     image: mtr.devops.telekom.de/caas/vcluster-backup:latest
     imagePullPolicy: Always
     name: backup
