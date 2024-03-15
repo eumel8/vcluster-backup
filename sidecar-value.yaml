@@ -1,0 +1,45 @@
+sidecarContainer:
+- env:
+    - name: ENDPOINT
+      value: minio.example.com
+    - name: ACCESS_KEY
+      value: vc1
+    - name: BUCKET_NAME
+      value: vc1
+    - name: CLUSTERNAME
+      value: vc1
+    - name: ENC_KEY
+      value: "12345"
+    - name: TRACE
+      value: "1"
+    - name: BACKUP_INTERVAL
+      value: "1"
+    - name: SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: s3-register
+          key: s3secretkey
+  image: mtr.devops.telekom.de/caas/vcluster-backup:latest
+  imagePullPolicy: Always
+  name: backup
+  resources:
+    limits:
+      cpu: "1"
+      memory: 512Mi
+    requests:
+      cpu: 20m
+      memory: 64Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  volumeMounts:
+  - mountPath: /tmp
+    name: tmp
+  - mountPath: /data
+    name: data
