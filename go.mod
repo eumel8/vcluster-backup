@@ -2,7 +2,7 @@ module vcluster-backup.go
 
 go 1.21.0
 
-require github.com/minio/minio-go/v7 v7.0.71
+require github.com/minio/minio-go/v7 v7.0.72
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
