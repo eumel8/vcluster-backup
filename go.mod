@@ -2,7 +2,7 @@ module vcluster-backup.go
 
 go 1.21.0
 
-require github.com/minio/minio-go/v7 v7.0.73
+require github.com/minio/minio-go/v7 v7.0.74
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
