@@ -1,9 +1,10 @@
 module vcluster-backup.go
 
-go 1.21.0
+go 1.23.0
+
 toolchain go1.24.1
 
-require github.com/minio/minio-go/v7 v7.0.91
+require github.com/minio/minio-go/v7 v7.0.92
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -15,8 +16,10 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
