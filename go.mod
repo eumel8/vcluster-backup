@@ -2,7 +2,7 @@ module vcluster-backup.go
 
 go 1.25.0
 
-require github.com/minio/minio-go/v7 v7.2.0
+require github.com/minio/minio-go/v7 v7.2.1
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
